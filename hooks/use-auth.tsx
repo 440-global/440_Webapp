@@ -1,0 +1,89 @@
+"use client"
+
+import {
+  deleteCrossSubdomainCookie,
+  getCrossSubdomainCookie,
+  setCrossSubdomainCookie,
+} from "@/lib/utils";
+import { createContext, useContext, useEffect, useState } from "react"
+
+type User = {
+  merchant: number;
+  name: string;
+  phone: string;
+  user_type: string;
+  completion_details: any;
+};
+
+type AuthData = {
+  user: User | null;
+  token?: string;
+  refreshToken?: string;
+};
+
+type AuthContextType = {
+  user: User | null;
+  loading: boolean;
+  authenticate: (data: AuthData) => void;
+  authenticated: boolean;
+  logout: () => void;
+};
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+
+  const session_id = crypto.randomUUID();
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("merchant");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+        setAuthenticated(true);
+      } else if (getCrossSubdomainCookie("440_token")) {
+        setAuthenticated(true);
+      }
+    } catch (error) {
+      console.error("Error parsing user JSON:", error);
+    }
+    setLoading(false);
+  }, []);
+
+  const authenticate = (data: AuthData) => {
+    setUser(data.user);
+    setCrossSubdomainCookie("440_session_id", session_id, 1);
+    if (data.user) {
+      localStorage.setItem("merchant", JSON.stringify(data.user));
+    }
+    setAuthenticated(true);
+    if (data.token) {
+      setCrossSubdomainCookie("440_token", data.token, 1);
+    }
+    if (data.refreshToken) {
+      setCrossSubdomainCookie("440_refresh_token", data.refreshToken, 30);
+      setCrossSubdomainCookie("440_session_id", session_id, 30);
+    }
+  };
+
+  const logout = () => {
+    deleteCrossSubdomainCookie("440_token");
+    deleteCrossSubdomainCookie("440_refresh_token");
+    deleteCrossSubdomainCookie("440_session_id");
+    localStorage.removeItem("merchant");
+    setUser(null);
+    setAuthenticated(false);
+    window.location.href = "/login";
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, authenticate, authenticated, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthContext)!;

@@ -1,0 +1,181 @@
+"use client"
+
+import { useLoginMutation } from '@/api/auth'
+import { Button, Card, Input } from '@/components/ui'
+import { useAuth } from '@/hooks/use-auth'
+import { getIdentifierType } from '@/lib/validateIdentifier'
+import { Login } from '@/types/types'
+import { AxiosError } from 'axios'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import React, { FormEvent, useEffect, useState } from 'react'
+import { toast } from "react-toastify";
+
+const AccountLogin = () => {
+  const [formValues, setFormValues] = useState<Login>({
+    identifier: '',
+    password: ''
+  });
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  const [rfqRedirect, setRfqRedirect] = useState<string | null>(null);
+
+  const { mutateAsync: loginUser, isPending: isLoginLoading } = useLoginMutation();
+  const { authenticate } = useAuth();
+  const router = useRouter();
+
+  // Redirect URLs
+  useEffect(() => {
+    setRedirectUrl(localStorage.getItem("redirectAfterLogin"));
+    setRfqRedirect(localStorage.getItem("redirectToServicePopup"));
+  }, []);
+
+  useEffect(() => {
+    if (rfqRedirect) {
+      toast.warning(`Login before checking out services`, {
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+    }
+  }, [rfqRedirect])
+  
+
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
+    const { name, value } = e.target;
+
+    setFormValues(prevData => ({
+      ...prevData,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const { password } = formValues;
+    const identifier = formValues.identifier.trim();
+
+    const identifierType = getIdentifierType(identifier);
+    if (!identifierType) {
+      toast.error("Enter a valid email address or phone number");
+      return;
+    }
+
+    try {
+      const data: Login = {
+        identifier,
+        password
+      }
+      const res = await loginUser(data);
+      if (res.status === 200) {
+        toast.success(`✓ Login successfully`, {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+
+        const token = res.data?.data?.token;
+        const refreshToken = res.data?.data?.refreshToken;
+        const user = res.data?.data?.customer;
+
+        authenticate({ user, token, refreshToken });
+
+        let destination = "/account";
+        if (rfqRedirect) {
+          destination = "/?RFQ";
+        } else if (redirectUrl) {
+          destination = redirectUrl;
+        }
+
+        localStorage.removeItem("redirectAfterLogin");
+        localStorage.removeItem("redirectToServicePopup");
+
+        window.location.href = destination;
+      } else {
+        toast.success(`Something went wrong`, {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+    } catch (error) {
+      const err = error as AxiosError<{ message?: string }>;
+      toast.error(
+        err.response?.data?.message ??
+          err.message ??
+          "Something went wrong, please try again", {
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+    }
+  }
+
+  return (
+    <div className='h-screen flex flex-col justify-center items-center px-6'>
+      <Card className='w-full md:w-150 md:p-12!'>
+        <form onSubmit={handleSubmit}>
+          <div className="my-4">
+            <h1 className="text-3xl">Login</h1>
+            <p className="text-(--text-muted)">Enter your details to log into your account</p>
+          </div>
+          <Input 
+            input_type="text"
+            element="input"
+            placeholder="Enter your email or phone number"
+            tag="Email or Phone Number"
+            name="identifier"
+            value={formValues.identifier || ''}
+            handler={handleChange}
+            required
+          />
+          <Input 
+            input_type="password"
+            element="input"
+            placeholder="Enter your password"
+            tag="Password"
+            name="password"
+            value={formValues.password || ''}
+            handler={handleChange}
+            required
+          />
+          <div className="flex justify-end relative -top-4">
+            <Link href={'/forgot-password'} className='text-(--primary) font-semibold text-sm'>
+              Forgot Password?
+            </Link>
+          </div>
+          <Button
+            type='submit'
+            isFullWidth
+            primary
+            isLoading={isLoginLoading}
+          >
+            {isLoginLoading ? "Logging in..." : "Login"}
+          </Button>
+        </form>
+        <p className="text-center text-sm mt-3">
+          Don't have an account? Click 
+          <Link href={'/register'} className='text-(--primary) font-semibold'> Here </Link> 
+          to register
+        </p>
+      </Card>
+    </div>
+  )
+}
+
+export default AccountLogin

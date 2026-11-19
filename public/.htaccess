@@ -1,0 +1,34 @@
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Let real files and folders through (CSS, JS, images, existing HTML)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # With trailingSlash: true, product pages are products/<id>/index.html
+  # Accept numeric IDs, UUIDs, and slug-like values (single URL segment).
+  # Prefer the prebuilt file for this id; if it doesn't exist yet (a
+  # product added after the last deploy), fall back to the client-rendered
+  # shell instead of 404ing. The URL stays /products/<id>/ so the app picks
+  # up the real id and fetches live data.
+  RewriteCond %{DOCUMENT_ROOT}/products/$1/index.html -f
+  RewriteRule ^products/([^/]+)/?$ products/$1/index.html [L]
+  RewriteRule ^products/([^/]+)/?$ products/_fallback/index.html [L]
+  # Dynamic tracking URLs
+  RewriteRule ^track/[^/]+/?$ track/_fallback/index.html [L]
+
+  # Main app routes (directory-style output)
+  RewriteRule ^products/?$ products/index.html [L]
+  RewriteRule ^cart/?$ cart/index.html [L]
+  RewriteRule ^checkout/?$ checkout/index.html [L]
+  RewriteRule ^account/?$ account/index.html [L]
+  RewriteRule ^account/register/?$ account/register/index.html [L]
+
+  # Home
+  RewriteRule ^$ index.html [L]
+</IfModule>
+
+DirectoryIndex index.html index.php

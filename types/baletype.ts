@@ -1,0 +1,235 @@
+export type ProductReview = {
+  id: number;
+  buyerId: number | null;
+  productId: number;
+  rating: string;
+  note: string;
+  purchasedItem: string;
+  buyerName: string;
+  images: string[];
+  dateRaw: string | null;
+  createdAt: string;
+  updatedAt: string;
+  buyer: unknown | null;
+};
+
+export type SingleBale = {
+  prices?: {}[] | null;
+  id: number;
+  productId: number;
+  quantity: number;
+  filled: number;
+  slot: number;
+  filledSlot: number;
+  price: number;
+  oldPrice: number;
+  originalPrice?: number | null;
+  totalDeliveryFee: number;
+  deliveryFee: number;
+  baleId: string;
+  startedAt?: string;
+  restartedCount: number;
+  cycle: number;
+  endIn: string;
+  shipmentId?: string | null;
+  createdBy?: number | null;
+  status: "OPEN" | "CLOSED";
+  isSpecial?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  product: ProductTwo;
+  paidJoinCount?: number;
+  discountLadder: {
+    perSlotPercent: number;
+    maxPartialPercent: number;
+    fullPoolPercent: number;
+    tiers: { 
+      slots: number; 
+      ratePercent: number 
+    }[];
+  };
+  // The API returns null for some bales, so callers must guard.
+  buying: {
+    modes: ["DIRECT", "POOL"];
+    defaultMode: "POOL" | "DIRECT";
+    direct: {
+      minQty: number;
+      maxQty: number | null;
+    };
+    pool: {
+      minSlotsPerBuyer: number;
+      maxSlotsPerBuyer: number | null;
+    };
+  } | null;
+};
+
+export type Product = {
+  images: string[];
+  productAttributes: ProductSubItem | null;
+  packageInfo: ProductSubItem;
+  prices?: {} | null;
+  evaluatePanelSummary: string | null;
+  id: number;
+  supplierId: number;
+  subCategoryId: number;
+  productTypeId?: number;
+  price: number;
+  oldPrice: number;
+  name: string;
+  description: string;
+  status: boolean;
+  isSpecial: boolean;
+  isBogoPromo: boolean;
+  isSingleSlot: boolean;
+  platform?: string;
+  link?: string;
+  currency?: string;
+  relistPriceCapPercent?: null;
+  relistMinQuantity?: null;
+  createdBy?: number;
+  rate?: number;
+  positiveFeedbackRate?: number;
+  reviewsNumber?: number;
+  reviews?: ProductReview[];
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  variants: any[];
+  productSizes: ProductSize[];
+  colors: ProductColorVariant[];
+};
+
+export type ProductTwo = {
+  images: string[];
+  productAttributes: ProductSubItem | null;
+  packageInfo: ProductSubItem;
+  prices: {}[] | null;
+  evaluatePanelSummary: string | null;
+  id: number;
+  supplierId: number;
+  subCategoryId?: number;
+  productTypeId?: number;
+  price: number;
+  oldPrice: number;
+  originalPrice: number | null;
+  name: string;
+  description: string;
+  status: boolean;
+  visibility: "PUBLIC" | "UNLISTED" | "HIDDEN";
+  isSpecial: boolean;
+  isBogoPromo?: boolean;
+  isSingleSlot?: boolean;
+  platform?: string;
+  link?: string | null;
+  currency?: string;
+  relistPriceCapPercent?: null;
+  relistMinQuantity?: null;
+  shippingFee: number;
+  moq: number;
+  createdBy: string | null;
+  rate?: number;
+  positiveFeedbackRate?: null;
+  reviewsNumber?: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  variants: any[];
+  productSizes: ProductSize[];
+  colors: ProductColorVariant[];
+  reviews?: ProductReview[];
+};
+
+export type ProductRow = Record<string, string>;
+
+export type ProductSubItem = {
+  title: string | null,
+  headers: string[],
+  rows: ProductRow[]
+}
+
+export type ProductSize = {
+  id: number;
+  sizeId: number;
+  productId: number;
+  status: boolean;
+  createdAt: string;
+  updatedAt: string;
+  size: Size;
+};
+
+export type ProductColorVariant = {
+  id: number;
+  productId: number;
+
+  color: string;
+  otherColor?: string;
+
+  images: string[];
+  hex_code: string | null;
+
+  quantity: number;
+  status: boolean;
+
+  tagId: number | null;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+
+export type Size = {
+  id: number;
+  label: string;
+  formart: string;
+  type: string;
+  createdAt: string;
+  updatedAt: string;
+  tagId: number | null;
+};
+
+export type Supplier = {
+  id: number;
+  name: string;
+  userName: string;
+  marketId: number;
+  image: string;
+  profile: string;
+  location: string;
+  description: string;
+  status: boolean;
+  createdAt: string;
+  updatedAt: string;
+  supplierId: number | null;
+  categories: any[];
+};
+
+export type SubCategory = {
+  id: number;
+  name: string;
+  categoryId: number;
+  subCategoryslug: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // category: Category;
+  productTypes: ProductType[];
+};
+
+export type Category = {
+  id: number;
+  name: string;
+  categorySlug: string | null;
+  priority: number;
+  image: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProductType = {
+  id: number;
+  name: string;
+  subCategoryId: number;
+  createdAt: string;
+  updatedAt: string;
+};

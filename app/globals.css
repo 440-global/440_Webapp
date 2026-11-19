@@ -1,0 +1,159 @@
+@import url('https://fonts.cdnfonts.com/css/coolvetica');
+@import url('https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap');
+
+@import "tailwindcss";
+
+:root {
+  --secondary: #1a73e8;
+  --secondary-hover: #1558b0;
+
+  --primary: #f97316;
+  --primary-soft: #ffedd5;
+
+  /* Backgrounds */
+  --bg-page: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-muted: #f1f5f9;
+
+  /* Borders & dividers */
+  --border-default: #e5e7eb;
+  --border-muted: #cbd5e1;
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+
+  /* Status */
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --error: #dc2626;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dark {
+  /* Brand */
+  --secondary: #3b82f6;
+  --secondary-hover: #60a5fa;
+
+  --primary: #fb923c;
+  --primary-soft: #431407;
+
+  /* Backgrounds */
+  --bg-page: #020617;
+  --bg-surface: #020617;
+  --bg-muted: #020617;
+
+  /* Borders & dividers */
+  --border-default: #1e293b;
+  --border-muted: #334155;
+
+  /* Text */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5f5;
+  --text-muted: #94a3b8;
+  --text-inverse: #020617;
+
+  /* Status */
+  --success: #22c55e;
+  --warning: #fbbf24;
+  --error: #ef4444;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.6);
+}
+
+* {
+  font-family: 'Onest';
+}
+
+body {
+  font-family: 'Onest';
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+}
+
+.navBar li a {
+  position: relative;
+}
+
+.navBar li a::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 3px;
+  border-radius: 4px;
+  background: var(--primary);
+  bottom: -10;
+  left: 0;
+  transition: all ease .5s;
+}
+
+.smallNav li a::after {
+  bottom: 0 !important;
+}
+
+.navBar li a.active::after {
+  width: 50%;
+  left: 25%;
+}
+
+.navBar li a.active:hover::after {
+  left: 0;
+  width: 50%;
+}
+
+.navBar li a:hover::after {
+  width: 50%;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  /* default max width */
+  margin: auto;
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    padding: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    width: 100%;
+    border-radius: 0;
+    padding: 10px;
+  }
+}

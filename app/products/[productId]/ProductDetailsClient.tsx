@@ -1,0 +1,1156 @@
+"use client";
+
+import { useGetBales, useGetSingleBale } from "@/api/bale";
+import ProductImages from "@/components/product/ImageGallery";
+import Countdown from "@/components/shared/Countdown";
+import { Badge, Button, Progress, StarRating } from "@/components/ui";
+import { Tabs } from "@/components/ui/tabs";
+import { useCart } from "@/hooks/use-cart";
+import { getCrossSubdomainCookie, getStoredName, getStoredPhone } from "@/lib/utils";
+import { AnalyticsPayload, FormValues, SaveProductPayload } from "@/types/types";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  RiBankCardFill,
+  RiBookmark2Fill,
+  RiCloseLine,
+  RiGroup2Fill,
+  RiLoader5Line,
+} from "react-icons/ri";
+import { toast } from "react-toastify";
+import Recommended from "@/components/product/Recommended";
+import ProductLogin from "@/components/product/ProductLogin";
+import { useBuy } from "@/hooks/use-buy";
+import { useProductAllocation } from "@/hooks/useProductAllocation";
+import AllocationModal from "@/components/product/AllocationModal";
+import { useGetSavedProduct, useGetSupplier, useSaveProduct } from "@/api/product";
+import { PackagingInfo, ProductAttributes } from "@/components/product/ProductAttributes";
+import UserBubbles from "@/components/product/UserBubble";
+import ProductReviewsSection from "@/components/product/ProductReviewsSection";
+import { recordRecentlyViewedBale } from "@/lib/recently-viewed-bales";
+import { AxiosError } from "axios";
+import * as fbq from "@/lib/fpixel";
+import { useAuth } from "@/hooks/use-auth";
+import { useSendAnalytics } from "@/api/analytics";
+import { useAddCartItem } from "@/api/cart";
+import PhoneNumber from "@/components/product/PhoneNumber";
+import { BogoBadge } from "@/components/ui/bogobadge";
+import { getTierRate } from "@/types/funcs";
+
+const PRODUCT_RATING_FALLBACKS = [4, 4.5, 5] as const;
+
+function getProductDisplayRating(
+  rate: number | undefined | null,
+  productId: number
+): number {
+  if (typeof rate === "number" && Number.isFinite(rate) && rate > 0) {
+    return Math.min(5, Math.max(0, rate));
+  }
+  const i = Math.abs(productId) % PRODUCT_RATING_FALLBACKS.length;
+  return PRODUCT_RATING_FALLBACKS[i];
+}
+
+type CartItemVariant = {
+  sizes: {
+    sizeId: number;
+    quantity: number;
+  }[];
+  colorSelections?: {
+    colorId: number;
+    quantity: number;
+    sizes: {
+      sizeId: number;
+      quantity: number;
+    }[];
+  };
+};
+
+const ProductDetails = () => {
+  const [formValues, setFormValues] = useState<FormValues>({
+    sizes: [],
+    colors: [],
+    slots: 1,
+  });
+
+  // State for switch
+  const [buyDirectly, setBuyDirectly] = useState(false);
+
+  // Buy modal
+  const [showBuyModal, setShowBuyModal] = useState(false);
+
+  // Show allocation modal
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
+
+  // For login modal display
+  const [notLoggedIn, setNotLoggedIn] = useState(false);
+
+  // For phone number modal display
+  const [isPhoneNotRegistered, setIsPhoneNotRegistered] = useState(false);
+
+  // If the product has already been saved
+  const [isProductSaved, setIsProductSaved] = useState(false);
+
+  // User authentication
+  const { user } = useAuth();
+
+  // For merchant info — read on client only to keep static export safe.
+  const merchant =
+    typeof window === "undefined"
+      ? null
+      : (() => {
+          try {
+            return JSON.parse(localStorage.getItem("merchant") ?? "null");
+          } catch {
+            return null;
+          }
+        })();
+  const merchantId = Number(merchant?.id);
+
+  // Hooks
+  const { productId: routeProductId } = useParams<{ productId: string }>();
+  // In the `_fallback` shell the route param is the placeholder, so take the
+  // real bale id from the URL.
+  const productId =
+    routeProductId === "_fallback" && typeof window !== "undefined"
+      ? window.location.pathname.split("/").filter(Boolean)[1] ?? routeProductId
+      : routeProductId;
+  const { data: baleData, isLoading, error } = useGetSingleBale(productId);
+  const {
+    data: allBales = [],
+    isPending: isBalesPending,
+    error: baleError,
+  } = useGetBales({});
+  const {
+    mutateAsync: saveProduct,
+    isPending: isSavePending,
+    error: saveError,
+  } = useSaveProduct();
+  const {
+    mutateAsync: sendAnalytics,
+    isPending: isAnalyticsPending,
+    error: analyticsError,
+  } = useSendAnalytics();
+  const {
+    mutateAsync: addCartItem,
+    isPending: isAddCartItemPending,
+    error: addCartItemError,
+  } = useAddCartItem();
+  
+  // const {
+  //   data: savedProducts,
+  //   isPending: isSavedPending,
+  //   error: savedError,
+  // } = useGetSavedProduct(String(merchantId!));
+
+  const supplierId = baleData?.product?.supplierId;
+
+  const router = useRouter();
+  const { addToCart } = useCart();
+  const { addToBuyCart } = useBuy();
+
+  const productsPerSlot =
+    baleData?.slot && baleData.slot > 0
+      ? Math.floor(baleData.quantity / baleData.slot)
+      : 0;
+
+  const maxAllowedQuantity = formValues.slots * productsPerSlot;
+
+  const maxDirectAllowedQuantity = baleData?.buying?.direct?.minQty ?? 0;
+
+  const availableStock = baleData?.quantity;
+
+  const {
+    allocations,
+    setAllocations,
+    activeColorId,
+    setActiveColorId,
+    totalAllocatedQuantity,
+    increaseColorQty,
+    decreaseColorQty,
+    increaseSizeQty,
+    decreaseSizeQty,
+    getColorQuantity,
+    handleCheckboxChange,
+    updateSizeQuantity,
+    updateColorQuantity,
+    hasColors,
+    hasSizes,
+    DEFAULT_COLOR_ID,
+  } = useProductAllocation({
+    baleData,
+    buyDirectly,
+    maxAllowedQuantity,
+    maxDirectAllowedQuantity,
+    setFormValues,
+  });
+
+  useEffect(() => {
+    if (!baleData?.id || !baleData.product) return;
+    recordRecentlyViewedBale(baleData);
+  }, [baleData]);
+
+  useEffect(() => {
+    if (!baleData) return;
+
+    if (formValues.colors.length === 0) {
+      setActiveColorId(null);
+    }
+  }, [formValues.colors, baleData]);
+
+  useEffect(() => {
+    if (!baleData) return;
+    if (formValues.colors.length > 0) return;
+
+    const firstColor = baleData.product.colors[0];
+    if (!firstColor) return;
+
+    setFormValues((prev) => ({
+      ...prev,
+      colors: [firstColor.color],
+    }));
+
+    setActiveColorId(firstColor.id);
+
+    setAllocations((prev) => ({
+      ...prev,
+      [firstColor.id]: {
+        colorId: firstColor.id,
+        colorLabel: firstColor.color,
+        colorImages: firstColor.images,
+        sizes: {},
+        quantity: 0,
+      },
+    }));
+  }, [baleData]);
+
+  useEffect(() => {
+    if (!baleData) return;
+
+    if (!hasColors) {
+      setActiveColorId(DEFAULT_COLOR_ID);
+
+      setAllocations((prev) => ({
+        ...prev,
+        [DEFAULT_COLOR_ID]: prev[DEFAULT_COLOR_ID] ?? {
+          colorId: DEFAULT_COLOR_ID,
+          colorLabel: "Default",
+          colorImages: baleData.product.images ?? [],
+          sizes: {},
+          quantity: 0,
+        },
+      }));
+    }
+  }, [baleData, hasColors]);
+
+  useEffect(() => {
+    if (user && baleData) {
+      const session_id = getCrossSubdomainCookie("440_session_id");
+      const payload: AnalyticsPayload = {
+        event_id: crypto.randomUUID(),
+        event_name: "PRODUCT_VIEWED",
+        session_id: session_id!,
+        source: "web",
+        resource_id: String(baleData!.productId),
+        resource_type: "product",
+        properties: {
+          price: baleData!.product.price,
+          currency: baleData!.product.currency,
+        },
+        platform: "web",
+        occurred_at: new Date().toISOString(),
+      };
+
+      const analytics = async () => {
+        try {
+          const res = await sendAnalytics(payload);
+          if (res.status === 200) {
+            console.log("Product viewed");
+          }
+        } catch (error) {
+          console.log(error);
+        }
+      };
+
+      analytics();
+    }
+  }, [user, baleData]);
+
+  // useEffect(() => {
+  //   if (savedProducts) {
+  //     const productIds = savedProducts.map((product: any) => product.id);
+  //     setIsProductSaved(productIds.includes(baleData?.productId));
+  //   }
+  // }, [savedProducts, baleData?.productId]);
+  
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center w-full h-screen">
+        <RiLoader5Line size={48} className="animate-spin text-(--primary)" />
+      </div>
+    );
+  }
+
+  if (error || !baleData) {
+    return <p>Error loading bale</p>;
+  }
+
+  const sizeOrder = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL"];
+
+  function sortProductSizes(productSizes: any) {
+    return [...productSizes].sort((a, b) => {
+      const labelA = a.size.label;
+      const labelB = b.size.label;
+
+      const numA = Number(labelA);
+      const numB = Number(labelB);
+
+      const aIsNum = !isNaN(numA);
+      const bIsNum = !isNaN(numB);
+
+      // Both numeric → sort ascending
+      if (aIsNum && bIsNum) return numA - numB;
+
+      // Both alpha (S, M, L etc.) → sort by predefined order
+      const indexA = sizeOrder.indexOf(labelA.toUpperCase());
+      const indexB = sizeOrder.indexOf(labelB.toUpperCase());
+
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+
+      // Fallback: alphabetical
+      return labelA.localeCompare(labelB);
+    });
+  }
+
+  // Usage
+  const sortedSizes = sortProductSizes(baleData.product.productSizes);
+
+  const sizesList = Array.from(
+    new Map(
+      sortedSizes.map((s) => [
+        s.size.label,
+        {
+          id: s.size.id,
+          value: s.size.label,
+          label: s.size.label,
+        },
+      ]),
+    ).values(),
+  );
+
+  const colorsList = baleData.product.colors.map((c) => ({
+    value: c.color,
+    label: c.color,
+    node:
+      c.images.length > 0 ? (
+        <img
+          src={c.images[0]}
+          alt={c.color}
+          className="w-10 h-10 rounded-lg object-cover"
+        />
+      ) : null,
+  }));
+
+  const isAllocationExceeded = buyDirectly ? totalAllocatedQuantity > baleData?.quantity : totalAllocatedQuantity > maxAllowedQuantity;
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormValues((prev) => ({ ...prev, [name]: Number(value) }));
+  };
+
+  const joinPool = async () => {
+    const useDefaultAllocation = totalAllocatedQuantity === 0;
+    const poolQuantity = useDefaultAllocation
+      ? maxAllowedQuantity
+      : totalAllocatedQuantity;
+
+    // if (!useDefaultAllocation && isAllocationExceeded) {
+    //   toast.error(
+    //     `You selected ${totalAllocatedQuantity} items, but only ${maxAllowedQuantity} are allowed for ${formValues.slots} slot(s).`,
+    //   );
+    //   return;
+    // }
+
+    // if (
+    //   !useDefaultAllocation &&
+    //   totalAllocatedQuantity !== maxAllowedQuantity
+    // ) {
+    //   toast.error(`You must allocate exactly ${maxAllowedQuantity} items.`);
+    //   return;
+    // }
+
+    // if (useDefaultAllocation && maxAllowedQuantity <= 0) {
+    //   toast.error("Choose at least one slot so your pool quantity is valid.");
+    //   return;
+    // }
+
+    const token = getCrossSubdomainCookie("440_token");
+    if (!token) {
+      setNotLoggedIn(true);
+    } else {
+      if (baleData) {
+        addToCart({
+          cartItemId: `cart-${baleData.baleId}`,
+          productId: baleData.productId,
+          baleId: baleData.id,
+          name: baleData.product.name,
+          image: baleData.product.images[0],
+          supplierId: baleData.product.supplierId,
+          price: baleData.product.price,
+          originalPrice: baleData.product.oldPrice,
+          pooledPrice: pooledPrice,
+          pooledSubtotal: pooledSubtotal,
+          discountRate: discountRate,
+          discount: 10,
+          currency: "NGN",
+          slots: formValues.slots,
+          totalSlots: baleData.slot,
+          totalShippingFee: baleData.deliveryFee * formValues.slots,
+          quantity: poolQuantity,
+          unit: "unit",
+          variants: useDefaultAllocation
+            ? { sizes: [], colors: [] }
+            : selectedVariants,
+          createdAt: baleData.createdAt,
+          updatedAt: baleData.updatedAt,
+          description: baleData.product.description,
+          status: Boolean(baleData.status == "OPEN"),
+          endIn: baleData.endIn,
+          items: useDefaultAllocation ? [] : items,
+          inStock: true,
+        });
+
+        if (user) {
+          const session_id = getCrossSubdomainCookie("440_session_id");
+          const payload: AnalyticsPayload = {
+            event_id: crypto.randomUUID(),
+            event_name: "BALE_JOINED",
+            session_id: session_id!,
+            source: "web",
+            resource_id: String(baleData!.productId),
+            resource_type: "product",
+            properties: {
+              price: baleData!.product.price,
+              currency: baleData!.product.currency,    
+              additionalProp1: {
+                slots: formValues.slots,
+                quantity: poolQuantity,
+              }
+            },
+            platform: "web",
+            occurred_at: new Date().toISOString(),
+          };
+
+          const analytics = async () => {
+            try {
+              const res = await sendAnalytics(payload);
+              if (res.status === 200) {
+                console.log("Product viewed");
+              }
+            } catch (error) {
+              console.log(error);
+            }
+          };
+
+          analytics();
+        }
+
+        fbq.event("JoinPool", {
+          category: "pool",
+          content_ids: [baleData.id],
+          content_type: "product",
+          value: baleData.product.price,
+          number_of_slots: formValues.slots,
+          quantity: poolQuantity,
+          currency: "NGN",
+        }, true);
+
+        // fbq.event("AddToCart", {
+        //   content_ids: [baleData.id],
+        //   content_type: "product",
+        //   value: baleData.product.price,
+        //   number_of_slots: formValues.slots,
+        //   quantity: poolQuantity,
+        //   currency: "NGN",
+        // });
+
+        router.push("/checkout");
+      }
+    }
+  };
+
+  const handleBuyNow = () => {
+    // if (isAllocationExceeded) {
+    //   toast.error(
+    //     `You selected ${totalAllocatedQuantity} items, but only ${maxDirectAllowedQuantity} are allowed for ${formValues.slots} slot(s).`
+    //   )
+    //   return
+    // }
+
+    if (totalAllocatedQuantity < maxDirectAllowedQuantity) {
+      toast.error(
+        `You must allocate at least ${maxDirectAllowedQuantity} items.`,
+      );
+      return;
+    }
+
+    setShowBuyModal(false);
+
+    const token = getCrossSubdomainCookie("440_token");
+
+    if (!token) {
+      setNotLoggedIn(true);
+      return;
+    }
+
+    if (baleData) {
+      addToBuyCart({
+        productId: baleData.productId,
+        quantity: totalAllocatedQuantity,
+        ...items,
+      });
+
+      if (user) {
+        const session_id = getCrossSubdomainCookie("440_session_id");
+        const payload: AnalyticsPayload = {
+          event_id: crypto.randomUUID(),
+          event_name: "CART_ITEM_ADDED",
+          session_id: session_id!,
+          source: "web",
+          resource_id: String(baleData!.productId),
+          resource_type: "product",
+          properties: {
+            price: baleData!.product.price,
+            currency: baleData!.product.currency,
+            additionalProp1: {
+              quantity: totalAllocatedQuantity,
+            },
+          },
+          platform: "web",
+          occurred_at: new Date().toISOString(),
+        };
+
+        const analytics = async () => {
+          try {
+            const res = await sendAnalytics(payload);
+            if (res.status === 200) {
+              console.log("Product viewed");
+            }
+          } catch (error) {
+            console.log(error);
+          }
+        };
+
+        analytics();
+      }
+    }
+
+    fbq.event("AddToCart", {
+      category: "checkout",
+      content_ids: [baleData.id],
+      content_type: "product",
+      value: baleData.product.price,
+      currency: "NGN",
+    }, false);
+
+    router.push("/checkout?direct_order=true");
+  };
+
+  const handleAddToCart = async () => {
+    if (totalAllocatedQuantity < maxDirectAllowedQuantity) {
+      toast.error(
+        `You must allocate at least ${maxDirectAllowedQuantity} items.`,
+      );
+      return;
+    }
+
+    setShowBuyModal(false);
+
+    const token = getCrossSubdomainCookie("440_token");
+    const clientPhone = getStoredPhone();
+
+    // Only guests need a phone number on file — authenticated users
+    // resolve identity from the token instead.
+    if (!token && !clientPhone) {
+      setIsPhoneNotRegistered(true);
+      return;
+    }
+
+    if (baleData) {
+      addToBuyCart({
+        productId: baleData.productId,
+        quantity: totalAllocatedQuantity,
+        ...(!token && { phone: clientPhone! }),
+        ...items,
+      });
+
+      if (user) {
+        const session_id = getCrossSubdomainCookie("440_session_id");
+        const payload: AnalyticsPayload = {
+          event_id: crypto.randomUUID(),
+          event_name: "CART_ITEM_ADDED",
+          session_id: session_id!,
+          source: "web",
+          resource_id: String(baleData!.productId),
+          resource_type: "product",
+          properties: {
+            price: baleData!.product.price,
+            currency: baleData!.product.currency,
+            additionalProp1: {
+              quantity: totalAllocatedQuantity,
+            },
+          },
+          platform: "web",
+          occurred_at: new Date().toISOString(),
+        };
+
+        const analytics = async () => {
+          try {
+            const res = await sendAnalytics(payload);
+            if (res.status === 200) {
+              console.log("Product viewed");
+            }
+          } catch (error) {
+            console.log(error);
+          }
+        };
+
+        analytics();
+      }
+
+      fbq.event(
+        "AddToCart",
+        {
+          category: "cart",
+          content_ids: [baleData.id],
+          content_type: "product",
+          value: baleData.product.price,
+          currency: "NGN",
+        },
+        false,
+      );
+
+      toast.success("Added to cart");
+    }
+  };
+
+  const formatPrice = (price?: number | null) => {
+    const safePrice = typeof price === "number" && isFinite(price) ? price : 0;
+
+    return safePrice.toLocaleString("en-US", {
+      maximumFractionDigits: 0,
+    });
+  };
+
+  const cleanedAllocations = Object.fromEntries(
+    Object.entries(allocations).filter(([_, color]) => {
+      if (hasSizes) {
+        return Object.values(color.sizes).some((s) => s.quantity > 0);
+      }
+      return (color.quantity ?? 0) > 0;
+    }),
+  );
+
+  const items: CartItemVariant[] = Object.values(allocations).flatMap((color) => {
+    const hasValidColor = color.colorId && color.colorId !== 0;
+
+    // WITH SIZES
+    if (hasSizes) {
+      return Object.values(color.sizes)
+        .filter((s) => s.quantity > 0)
+        .map((s) => ({
+          sizes: [
+            {
+              sizeId: s.sizeId,
+              quantity: s.quantity,
+            },
+          ],
+          ...(hasValidColor && {
+            colorSelections: {
+              colorId: color.colorId,
+              quantity: s.quantity,
+              sizes: [
+                {
+                  sizeId: s.sizeId,
+                  quantity: s.quantity,
+                },
+              ],
+            },
+          }),
+        }));
+    }
+
+    // WITHOUT SIZES (FIXED)
+    if (!color.quantity || color.quantity <= 0) return [];
+
+    return [
+      {
+        sizes: [],
+        ...(hasValidColor && {
+          colorSelections: {
+            colorId: color.colorId,
+            quantity: color.quantity,
+            sizes: [],
+          },
+        }),
+      },
+    ];
+  });
+
+  const selectedVariants = {
+    sizes: formValues.sizes,
+    colors: formValues.colors,
+  };
+
+  const filteredBales = allBales?.filter(
+    (bale) => bale.id != Number(productId),
+  );
+
+  const remainingColors = colorsList.length - 5;
+
+  const openBuy = () => {
+    setBuyDirectly(true);
+    setShowAllocationModal(true);
+  };
+
+  const openPool = () => {
+    setBuyDirectly(false);
+    setShowAllocationModal(true);
+  };
+
+  const bookmark = async () => {
+    const payload: SaveProductPayload = {
+      merchantId,
+      productId: baleData?.id,
+    };
+
+    if (!merchant || !merchantId) {
+      toast.error("Log in to save product");
+    } else {
+      try {
+        const response = await saveProduct(payload);
+
+        if (response.status == 200 || response.status == 201) {
+          toast.success("Product Saved");
+        } else {
+          toast.warning("Something went wrong");
+        }
+      } catch (error) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(
+          err.response?.data?.message ??
+            err.message ??
+            "Something went wrong, please try again",
+          {
+            position: "top-right",
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          },
+        );
+      }
+    }
+  };
+
+  if (isBalesPending) {
+    return (
+      <div className="flex justify-center items-center w-full h-screen">
+        <RiLoader5Line size={48} className="animate-spin text-(--primary)" />
+      </div>
+    );
+  }
+
+  if (baleError) {
+    return (
+      <div className="flex justify-center items-center w-full my-24">
+        <p className="text-xl">Product not found</p>
+      </div>
+    );
+  }
+
+  const productDisplayRating = getProductDisplayRating(
+    baleData.product.rate,
+    baleData.product.id,
+  );
+
+  const discountRate = getTierRate(
+    baleData.discountLadder?.tiers,
+    formValues.slots,
+  );
+  
+  const pooledSubtotal = baleData.price * productsPerSlot * formValues.slots;
+  const pooledPrice = pooledSubtotal * (1 - discountRate / 100);
+
+  return (
+    <>
+      <section className="pt-21.5 md:pt-24 mb-16">
+        <div className="px-0 sm:px-2 md:px-10 lg:px-24 flex flex-col gap-0 md:gap-8">
+          <div className="flex flex-col md:flex-row items-stretch md:items-start gap-0 md:gap-6 lg:gap-8">
+            {/* LEFT */}
+            <div className="w-full md:basis-2/3 md:min-w-0 md:sticky md:top-24">
+              <div className="bg-(--bg-surface) p-3 md:p-6 rounded-none md:rounded-xl mb-0 md:mb-8">
+                <ProductImages
+                  imageList={baleData.product.images}
+                  countdown={<Countdown endDate={baleData.endIn} />}
+                />
+              </div>
+              <div className="hidden md:block p-4 md:p-6 rounded-2xl bg-(--bg-surface) w-full mb-8">
+                {/* Reviews */}
+                <ProductReviewsSection
+                  reviews={baleData.product.reviews}
+                  productId={baleData.id}
+                />
+
+                {/* Attributes */}
+                <ProductAttributes
+                  productAttributes={baleData.product.productAttributes}
+                />
+
+                {/* Packaging Info */}
+                <PackagingInfo packageInfo={baleData.product.packageInfo} />
+              </div>
+            </div>
+
+            {/* RIGHT */}
+            <div className="md:sticky md:top-20 w-full md:basis-1/3 md:min-w-0">
+              <div className="bg-(--bg-surface) p-4 md:p-6 rounded-none md:rounded-xl border-0 md:border border-(--border-default) md:max-h-[calc(100vh-5rem)] overflow-y-auto no-scrollbar">
+                <div>
+                  <h1 className="text-2xl font-bold">
+                    {baleData.product.name}
+                  </h1>
+                  <div className="flex justify-between items-center">
+                    <div
+                      className="mt-2 flex flex-wrap items-center gap-2"
+                      aria-label={`Product rating ${productDisplayRating.toFixed(1)} out of 5`}
+                    >
+                      <StarRating
+                        rating={productDisplayRating}
+                        size={18}
+                        className="shrink-0"
+                      />
+                      <span className="text-sm font-semibold text-(--primary) tabular-nums">
+                        {productDisplayRating.toFixed(1)}
+                      </span>
+                    </div>
+
+                    <Button
+                      primary
+                      className="flex gap-2 items-center rounded-lg cursor-pointer px-2! py-1!"
+                      disabled={isProductSaved}
+                      onClick={bookmark}
+                    >
+                      <span>Save</span>
+                      <RiBookmark2Fill />
+                    </Button>
+                  </div>
+
+                  <div className="my-4">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <p className="text-3xl md:text-4xl text-(--primary) font-bold">
+                        &#8358;
+                        {baleData.product.isSingleSlot
+                          ? formatPrice(baleData.oldPrice)
+                          : formatPrice(baleData.price)}
+                      </p>
+                      <p className="text-(--text-muted) line-through">
+                        &#8358;
+                        {baleData.product.isSingleSlot
+                          ? baleData.originalPrice != null ? formatPrice(baleData.originalPrice) : formatPrice(baleData.oldPrice)
+                          : formatPrice(baleData.oldPrice)}
+                      </p>
+                    </div>
+                    {baleData.product.isBogoPromo && (
+                      <BogoBadge variant="banner" className="mt-2" />
+                    )}
+                  </div>
+
+                  <div className="">
+                    <h3 className="text-lg font-bold mb-2">Variations</h3>
+
+                    {colorsList.length > 0 && (
+                      <div className="mb-4">
+                        <p className="uppercase text-sm font-semibold text-(--text-muted)">
+                          Colors
+                        </p>
+                        {/* Color selection (unchanged UI, just wired) */}
+                        <div
+                          className={`flex flex-wrap items-stretch gap-2 mt-1`}
+                        >
+                          {colorsList.slice(0, 4).map((color, index) => {
+                            return (
+                              <div
+                                key={index}
+                                className={`relative flex gap-2 items-center rounded-lg border p-2 transition border-(--border-default) h-fit`}
+                              >
+                                {color.node != null && color.node}
+                                {color.node == null && color.label}
+                              </div>
+                            );
+                          })}
+
+                          {remainingColors > 0 && (
+                            <div className="px-4 rounded-lg bg-(--primary-soft) text-(--primary) flex items-center justify-center text-xl font-medium border border-white">
+                              +{remainingColors}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col h-full gap-3 overflow-y-auto mb-3">
+                      {hasSizes && (
+                        <>
+                          <p className="uppercase text-sm font-semibold text-(--text-muted)">
+                            Sizes
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {sizesList.map((size) => (
+                              <span
+                                key={size.id}
+                                className="px-2 py-1 rounded bg-(--primary-soft)"
+                              >
+                                {size.label}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {hasSizes &&
+                      baleData.slot > 0 &&
+                      !baleData.product.isSingleSlot && (
+                        <div className="mb-4 bg-(--bg-surface) p-4 rounded-lg border border-(--border-default)">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-(--primary)">
+                              <RiGroup2Fill className="shrink-0" />
+                              <h3 className="text-lg font-bold uppercase">
+                                Pool Progress
+                              </h3>
+                            </div>
+                            <UserBubbles count={baleData.filledSlot} />
+                          </div>
+
+                          <div className="mt-2 flex justify-between items-center">
+                            <p className="text-(--text-muted) text-sm">
+                              <span className="text-lg md:text-2xl text-(--primary) font-bold">
+                                {baleData.filledSlot}
+                              </span>{" "}
+                              / {baleData.slot} slots reserved
+                            </p>
+                          </div>
+
+                          <Progress
+                            totalQty={baleData.slot}
+                            currentQty={baleData.filledSlot}
+                            className="my-0!"
+                          />
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                {/* Buttons for pool and cart */}
+                <div className="mt-8 mb-4 flex gap-4 items-center">
+                  <div
+                    className={`relative ${baleData.product.isSingleSlot! ? "w-full" : "w-fit"}`}
+                  >
+                    <Button
+                      primary
+                      className={`uppercase gap-2 items-center`}
+                      disabled={Boolean(formValues.slots == 0)}
+                      onClick={openBuy}
+                      isFullWidth={baleData.product.isSingleSlot!}
+                    >
+                      <RiBankCardFill className="block" />
+                      Buy
+                    </Button>
+                    <div className="absolute -top-1 -right-2 bg-(--bg-surface) ring-2 ring-(--primary) rounded-full text-[10px] w-fit px-1 py-.5">
+                      {baleData.oldPrice.toLocaleString()}
+                    </div>
+                  </div>
+                  <div
+                    className={`relative w-fit ${baleData.product.isSingleSlot! && "hidden"}`}
+                  >
+                    <Button
+                      primary
+                      className={`uppercase ring-2 ring-(--primary) ring-inset text-(--primary)! bg-transparent`}
+                      disabled={Boolean(formValues.slots == 0)}
+                      onClick={openPool}
+                    >
+                      <RiGroup2Fill className="block" />
+                      Join Pool
+                    </Button>
+                    <div className="absolute -top-1 -right-2 bg-(--primary) text-white ring-2 ring-(--primary) rounded-full text-[10px] w-fit px-1 py-.5">
+                      {baleData.price.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile Tab List */}
+                <div className="block md:hidden rounded-2xl bg-(--bg-surface) w-full mb-8">
+                  <Tabs defaultValue="reviews">
+                    <Tabs.List className="border-b border-(--border-default)">
+                      <Tabs.Trigger
+                        value="reviews"
+                        className="px-4 py-2 data-[state=active]:border-b-3 data-[state=active]:border-(--primary) data-[state=active]:text-(--primary)"
+                      >
+                        <span className="block md:hidden">Reviews</span>
+                        <span className="md:block hidden">Product Reviews</span>
+                      </Tabs.Trigger>
+                      <Tabs.Trigger
+                        value="specs"
+                        className="px-4 py-2 data-[state=active]:border-b-3 data-[state=active]:border-(--primary) data-[state=active]:text-(--primary)"
+                      >
+                        <span className="block md:hidden">Specs</span>
+                        <span className="hidden md:block">Specifications</span>
+                      </Tabs.Trigger>
+                      <Tabs.Trigger
+                        value="shipping"
+                        className="px-4 py-2 data-[state=active]:border-b-3 data-[state=active]:border-(--primary) data-[state=active]:text-(--primary)"
+                      >
+                        <span className="block md:hidden">Packaging</span>
+                        <span className="md:block hidden">
+                          Packaging Information
+                        </span>
+                      </Tabs.Trigger>
+                    </Tabs.List>
+
+                    <Tabs.Content value="reviews" className="pt-4">
+                      <ProductReviewsSection
+                        reviews={baleData.product.reviews}
+                        productId={baleData.id}
+                      />
+                    </Tabs.Content>
+                    <Tabs.Content value="specs" className="pt-4">
+                      <ProductAttributes
+                        productAttributes={baleData.product.productAttributes}
+                      />
+                    </Tabs.Content>
+                    <Tabs.Content value="shipping" className="pt-4">
+                      <PackagingInfo
+                        packageInfo={baleData.product.packageInfo}
+                      />
+                    </Tabs.Content>
+                  </Tabs>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Recommended products={filteredBales} />
+        </div>
+      </section>
+
+      {/* ALLOCATION DRAWER */}
+      {notLoggedIn && (
+        <ProductLogin
+          baleData={baleData}
+          totalAllocatedQuantity={totalAllocatedQuantity}
+          maxAllowedQuantity={maxAllowedQuantity}
+          maxDirectAllowedQuantity={maxDirectAllowedQuantity}
+          formValues={formValues}
+          selectedVariants={selectedVariants}
+          items={items}
+          buyDirectly={buyDirectly}
+          setNotLoggedIn={setNotLoggedIn}
+        />
+      )}
+
+      {isPhoneNotRegistered && (
+        <PhoneNumber
+          setIsPhoneNotRegistered={setIsPhoneNotRegistered}
+          onPhoneSaved={handleAddToCart}
+        />
+      )}
+
+      {/* Buy modal */}
+      {showBuyModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-(--bg-surface) rounded-xl p-6 w-[90%] max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">
+                Continue with your purchase
+              </h3>
+              <button
+                className="text-sm text-gray-500 cursor-pointer"
+                onClick={() => setShowBuyModal(false)}
+              >
+                <RiCloseLine size={24} />
+              </button>
+            </div>
+
+            <p className="text-sm mb-6">
+              You can buy this item now or add it to your cart to purchase later
+            </p>
+
+            <div className="flex gap-4">
+              <Button
+                primary
+                className="flex-1 uppercase"
+                onClick={handleBuyNow}
+              >
+                Buy Now
+              </Button>
+
+              <Button
+                primary
+                className="flex-1 ring-2 ring-(--primary) bg-transparent text-(--primary)! uppercase"
+                onClick={handleAddToCart}
+              >
+                Add to Cart
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Allocation Modal */}
+      {showAllocationModal && (
+        <AllocationModal
+          isModalOpen={showAllocationModal}
+          setIsModalOpen={setShowAllocationModal}
+          baleData={baleData}
+          formatPrice={formatPrice}
+          productsPerSlot={productsPerSlot}
+          colorsList={colorsList}
+          formValues={formValues}
+          setFormValues={setFormValues}
+          getColorQuantity={getColorQuantity}
+          handleCheckboxChange={handleCheckboxChange}
+          activeColorId={activeColorId}
+          hasSizes={hasSizes}
+          sizesList={sizesList}
+          isAllocationExceeded={isAllocationExceeded}
+          allocations={allocations}
+          setAllocations={setAllocations}
+          decreaseSizeQty={decreaseSizeQty}
+          increaseSizeQty={increaseSizeQty}
+          decreaseColorQty={decreaseColorQty}
+          increaseColorQty={increaseColorQty}
+          handleChange={handleChange}
+          buyDirectly={buyDirectly}
+          joinPool={joinPool}
+          handleBuyNow={handleBuyNow}
+          handleAddToCart={handleAddToCart}
+          totalAllocatedQuantity={totalAllocatedQuantity}
+          hasColors={hasColors}
+          maxDirectAllowedQuantity={maxDirectAllowedQuantity}
+          maxAllowedQuantity={maxAllowedQuantity}
+          updateSizeQuantity={updateSizeQuantity}
+          updateColorQuantity={updateColorQuantity}
+          availableStock={availableStock!}
+          pooledPrice={pooledPrice}
+          pooledSubtotal={pooledSubtotal}
+          discountRate={discountRate}
+        />
+      )}
+    </>
+  );
+};;
+
+export default ProductDetails;

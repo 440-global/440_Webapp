@@ -1,0 +1,317 @@
+"use client";
+
+import React, { useState } from "react";
+import { RiEyeLine, RiEyeOffLine } from "react-icons/ri";
+import { cn } from "./utils";
+import AmountInput from "./amount-input";
+
+type CheckboxOption = {
+  value: string;
+  label?: string;
+  node?: React.ReactNode;
+};
+
+type RadioOption = {
+  value: string;
+  label?: string;
+  node?: React.ReactNode;
+};
+
+type Props = {
+  element: "input" | "select" | "textarea";
+  input_type?:
+    | "text"
+    | "email"
+    | "tel"
+    | "password"
+    | "radio"
+    | "checkbox"
+    | "number"
+    | "date"
+    | "datetime-local"
+    | "search";
+  name: string;
+  value: string | string[] | number | number[] | null;
+  handler: (e: React.ChangeEvent<any>) => void;
+  onFocus?: () => void;
+
+  tag?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+
+  selectOptions?: {
+    label: string;
+    value: string;
+  }[];
+  radioOptions?: RadioOption[];
+  checkboxOptions?: CheckboxOption[];
+  invisible?: boolean;
+
+  styling?: string;
+  genStyle?: string;
+
+  leftIcon?: React.ReactNode;
+};
+
+const InputWrapper = ({
+  children,
+  leftIcon,
+}: {
+  children: React.ReactNode;
+  leftIcon?: React.ReactNode;
+}) => (
+  <div className="relative flex items-center">
+    {leftIcon && (
+      <span className="absolute left-3 text-gray-400 pointer-events-none">
+        {leftIcon}
+      </span>
+    )}
+    {children}
+  </div>
+);
+
+const Input = React.memo(
+  ({
+    element,
+    input_type = "text",
+    name,
+    value,
+    handler,
+    onFocus,
+    tag,
+    placeholder,
+    required,
+    disabled,
+    selectOptions = [],
+    radioOptions = [],
+    checkboxOptions = [],
+    styling = "",
+    genStyle = "",
+    leftIcon,
+  }: Props) => {
+    const [visible, setVisible] = useState(false);
+    const togglePassword = () => setVisible((prev) => !prev);
+
+    // SELECT
+    if (element === "select") {
+      return (
+        <div className={cn("my-4", genStyle)}>
+          {tag && (
+            <label className="block font-semibold mb-1">
+              {tag}
+              {required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+          )}
+          <select
+            name={name}
+            value={value as string}
+            onChange={handler}
+            required={required}
+            disabled={disabled}
+            onFocus={onFocus}
+            className={cn(
+              "w-full p-3 bg-(--card) rounded-lg border border-slate-200 focus:border focus:outline-(--primary) disabled:cursor-not-allowed disabled:opacity-50",
+              disabled && "opacity-50 cursor-not-allowed",
+              styling,
+            )}
+          >
+            <option value="" disabled className="text-(--muted)!">
+              {placeholder}
+            </option>
+            {selectOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    // TEXTAREA
+    if (element === "textarea") {
+      return (
+        <div className={cn("my-4", genStyle)}>
+          {tag && (
+            <label className="block font-semibold mb-1">
+              {tag}
+              {required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+          )}
+          <textarea
+            name={name}
+            value={value as string}
+            onChange={handler}
+            placeholder={placeholder}
+            required={required}
+            disabled={disabled}
+            rows={5}
+            className={cn(
+              "w-full p-3 bg-(--card) rounded-lg border border-slate-200 focus:border focus:outline-(--primary) disabled:cursor-not-allowed disabled:opacity-50",
+              styling,
+            )}
+          />
+        </div>
+      );
+    }
+
+    // RADIO
+    if (input_type === "radio" && radioOptions.length > 0) {
+      return (
+        <div className={cn("my-4", genStyle)}>
+          {tag && <label className="block font-semibold mb-1">{tag}</label>}
+          <div
+            className={`grid grid-cols-1 ${radioOptions.length < 3 ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-3`}
+          >
+            {radioOptions.map((option) => {
+              const checked = value === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "border rounded-lg p-3 cursor-pointer transition",
+                    checked
+                      ? "border-(--primary) bg-(--primary) text-white"
+                      : "border-gray-300 hover:border-(--primary)",
+                    option.node
+                      ? "flex flex-col items-center justify-center gap-1 py-4 text-center"
+                      : "",
+                    styling,
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name={name}
+                    value={option.value}
+                    checked={checked}
+                    onChange={handler}
+                    required={required}
+                    disabled={disabled}
+                    className="hidden"
+                  />
+                  {option.node && option.node}
+                  {option.label && (
+                    <span className="capitalize text-sm">{option.label}</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // CHECKBOX
+    if (input_type === "checkbox" && checkboxOptions.length > 0) {
+      return (
+        <div className={cn("my-4", genStyle)}>
+          {tag && (
+            <label className="block font-semibold mb-1">
+              {tag}
+              {required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {checkboxOptions.map((option) => {
+              const checked =
+                Array.isArray(value) &&
+                (value as string[]).includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "border rounded-md p-2 cursor-pointer transition flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-50",
+                    checked
+                      ? "border-(--primary) ring ring-(--primary) text-(--primary) bg-(--primary)/10"
+                      : "border-gray-300 hover:border-(--primary)",
+                    styling,
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    name={name}
+                    value={option.value}
+                    checked={checked}
+                    onChange={handler}
+                    disabled={disabled}
+                    className="hidden"
+                  />
+                  {option.node ?? (
+                    <span className="capitalize text-sm">{option.label}</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // NUMBER
+    if (input_type === "number") {
+      return (
+        <AmountInput
+          name={name}
+          tag={tag}
+          placeholder={placeholder}
+          disabled={disabled}
+          styling={styling}
+          genStyle={genStyle}
+          value={Number(value) || 0}
+          required={required}
+          onChange={(num) =>
+            handler({
+              target: { name, value: num, type: "number" },
+            } as unknown as React.ChangeEvent<any>)
+          }
+        />
+      );
+    }
+
+    // INPUT (password or default)
+    return (
+      <div className={cn("my-4", genStyle)}>
+        {tag && (
+          <label className="block font-semibold mb-1">
+            {tag}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+        )}
+        <InputWrapper leftIcon={leftIcon}>
+          <input
+            type={
+              input_type === "password"
+                ? visible
+                  ? "text"
+                  : "password"
+                : input_type
+            }
+            name={name}
+            value={value as string}
+            onChange={handler}
+            placeholder={placeholder}
+            required={required}
+            disabled={disabled}
+            className={cn(
+              "w-full p-3 bg-(--bg-surface) rounded-lg border border-slate-200 focus:border focus:outline-(--primary) disabled:cursor-not-allowed disabled:opacity-50",
+              !!leftIcon && "pl-10",
+              styling,
+            )}
+          />
+          {input_type === "password" && (
+            <button
+              type="button"
+              onClick={togglePassword}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-xl"
+            >
+              {visible ? <RiEyeOffLine /> : <RiEyeLine />}
+            </button>
+          )}
+        </InputWrapper>
+      </div>
+    );
+  },
+);
+
+export default Input;
