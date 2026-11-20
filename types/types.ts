@@ -1245,6 +1245,7 @@ export interface TrackingPayment {
 // ASSUMED shape: the sample response only had `shipment: null`.
 // Adjust these fields to whatever the back end returns once an order ships.
 export type ShipmentStage =
+  | "BOOKED"
   | "AT_ORIGIN_WAREHOUSE"
   | "LOADED"
   | "DEPARTED_ORIGIN_PORT"
