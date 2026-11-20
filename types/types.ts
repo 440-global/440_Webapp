@@ -1222,7 +1222,7 @@ export interface TrackingTimelineEntry {
   /** Full ISO 8601 string */
   at: string;
   /** Can be null (e.g. the initial "Order placed" entry) */
-  stage: string | null;
+  stage: ShipmentStage | null;
   title: string;
   description?: string | null;
   location?: string | null;
