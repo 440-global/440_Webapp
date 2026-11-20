@@ -418,6 +418,15 @@ function TrackingView({
               Refresh
             </button>
           </div>
+          <div className="rounded-2xl bg-(--primary)/15 px-5 py-3 backdrop-blur mb-4">
+              <p className="text-[10px] uppercase tracking-wider text-(--primary)">
+                {pill.label}
+              </p>
+              <p className="mt-0.5 flex items-center gap-2 font-semibold text-(--primary)">
+                <RiTimeLine className="shrink-0" />
+                {fmtDate(pill.date)}
+              </p>
+            </div>
           <Timeline events={events} />
         </section>
 
@@ -539,12 +548,6 @@ function ShipmentCard({ shipment }: { shipment: TrackingShipment }) {
         )}
         {shipment.carrier && <Row label="Carrier" value={shipment.carrier} />}
         {route && <Row label="Route" value={route} />}
-        {shipment.estimatedDelivery && (
-          <Row
-            label="Estimated Delivery"
-            value={fmtDate(shipment.estimatedDelivery)}
-          />
-        )}
         {shipment.trackingNumber && (
           <CopyRow label="Tracking no." value={shipment.trackingNumber} />
         )}
@@ -713,64 +716,66 @@ function Timeline({ events }: { events: TrackingTimelineEntry[] }) {
 
   return (
     <ol className="relative">
-      {events.map((event, i) => {
-        const latest = i === 0;
-        const last = i === events.length - 1;
-        return (
-          <motion.li
-            key={`${event.at}-${i}`}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: Math.min(i * 0.06, 0.5) }}
-            className="relative flex gap-4 pb-6 last:pb-0"
-          >
-            {!last && (
-              <span className="absolute left-2.75 top-6 h-[calc(100%-1.5rem)] w-px bg-black/10 dark:bg-white/10" />
-            )}
-            <span
-              className={cn(
-                "relative mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                latest
-                  ? "bg-(--primary) ring-4 ring-(--primary)/15"
-                  : "bg-black/10 dark:bg-white/15",
-              )}
+      {
+        events.filter(event => event.title != 'Booked').map((event, i) => {
+          const latest = i === 0;
+          const last = i === events.length - 1;
+          return (
+            <motion.li
+              key={`${event.at}-${i}`}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: Math.min(i * 0.06, 0.5) }}
+              className="relative flex gap-4 pb-6 last:pb-0"
             >
+              {!last && (
+                <span className="absolute left-2.75 top-6 h-[calc(100%-1.5rem)] w-px bg-black/10 dark:bg-white/10" />
+              )}
               <span
                 className={cn(
-                  "h-2 w-2 rounded-full",
-                  latest ? "bg-white" : "bg-(--text-muted)/60",
+                  "relative mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                  latest
+                    ? "bg-(--primary) ring-4 ring-(--primary)/15"
+                    : "bg-black/10 dark:bg-white/15",
                 )}
-              />
-            </span>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <p
+              >
+                <span
                   className={cn(
-                    "text-sm",
-                    latest ? "font-semibold" : "font-medium",
+                    "h-2 w-2 rounded-full",
+                    latest ? "bg-white" : "bg-(--text-muted)/60",
                   )}
-                >
-                  {event.title}
-                </p>
-                <time className="text-xs text-(--text-muted)">
-                  {fmtDateTime(event.at)}
-                </time>
+                />
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <p
+                    className={cn(
+                      "text-sm",
+                      latest ? "font-semibold" : "font-medium",
+                    )}
+                  >
+                    {event.title}
+                  </p>
+                  <time className="text-xs text-(--text-muted)">
+                    {fmtDateTime(event.at)}
+                  </time>
+                </div>
+                {event.description && (
+                  <p className="mt-1 text-sm text-(--text-muted)">
+                    {event.description}
+                  </p>
+                )}
+                {event.location && (
+                  <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-(--text-muted)">
+                    <RiMapPin2Line /> {event.location}
+                  </p>
+                )}
               </div>
-              {event.description && (
-                <p className="mt-1 text-sm text-(--text-muted)">
-                  {event.description}
-                </p>
-              )}
-              {event.location && (
-                <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-(--text-muted)">
-                  <RiMapPin2Line /> {event.location}
-                </p>
-              )}
-            </div>
-          </motion.li>
-        );
-      })}
+            </motion.li>
+          );
+        })
+      }
     </ol>
   );
 }

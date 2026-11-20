@@ -1222,7 +1222,7 @@ export interface TrackingTimelineEntry {
   /** Full ISO 8601 string */
   at: string;
   /** Can be null (e.g. the initial "Order placed" entry) */
-  stage: string | null;
+  stage: ShipmentStage | null;
   title: string;
   description?: string | null;
   location?: string | null;
@@ -1245,7 +1245,6 @@ export interface TrackingPayment {
 // ASSUMED shape: the sample response only had `shipment: null`.
 // Adjust these fields to whatever the back end returns once an order ships.
 export type ShipmentStage =
-  | "BOOKED"
   | "AT_ORIGIN_WAREHOUSE"
   | "LOADED"
   | "DEPARTED_ORIGIN_PORT"
