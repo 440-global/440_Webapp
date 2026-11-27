@@ -78,7 +78,7 @@ export default function OrderHistory({ list }: Props) {
         </p>
       </div>
 
-      <div className="flex border-b border-gray-200 overflow-x-scroll">
+      <div className="flex border-b border-gray-200 overflow-x-auto">
         <Link
           href="/account/orders/ongoing"
           className={`border-b-2 px-4 py-3 text-sm font-semibold transition whitespace-nowrap sm:px-5 ${

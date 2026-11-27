@@ -2,11 +2,11 @@
 import { useResetPassword } from '@/api/auth';
 import { Button, Card, Input } from '@/components/ui';
 import { useAuth } from '@/hooks/use-auth';
-import { setCrossSubdomainCookie } from '@/lib/utils';
+import { getCrossSubdomainCookie, setCrossSubdomainCookie } from '@/lib/utils';
 import { getIdentifierType } from '@/lib/validateIdentifier';
 import { AxiosError } from 'axios';
-import { useRouter } from 'next/navigation';
-import React, { FormEvent, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation';
+import React, { FormEvent, useEffect, useState } from 'react'
 import { toast } from 'react-toastify';
 
 type Props = {}
@@ -15,6 +15,21 @@ const ForgotPassword = (props: Props) => {
   const [identifier, setIdentifier] = useState("");
   const { mutateAsync: resetPassword, isPending: isResetPending, error: resetError } = useResetPassword();
   const router = useRouter();
+
+  const searchParams = useSearchParams();
+  const reset = searchParams.has("reset_temp_password");
+
+  useEffect(() => {
+    if (!reset) return;
+
+    setIdentifier(getCrossSubdomainCookie("reset_identifier") ?? "");
+
+    toast.warn(
+      "Please change your temporary password before you can access your account",
+      { toastId: "reset-temp-password" }
+    );
+  }, [reset]);
+  
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

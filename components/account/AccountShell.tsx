@@ -4,9 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { accountBackOrHub } from "@/lib/account-navigation";
-import { useGetMinorUserProfile, useGetUserProfile } from "@/api/auth";
+import { useGetMinorUserProfile } from "@/api/auth";
 import { useAuth } from "@/hooks/use-auth";
-import type { Merchant, MinorMerchant } from "@/types/types";
+import type { MinorMerchant } from "@/types/types";
 import {
   RiAccountPinCircleLine,
   RiArrowLeftLine,
@@ -18,7 +18,6 @@ import {
   RiSettings3Line,
   RiShoppingBag3Line,
   RiShoppingCart2Line,
-  RiTruckLine,
   RiUser3Line,
 } from "react-icons/ri";
 import { toast } from "react-toastify";
@@ -75,6 +74,14 @@ export default function AccountShell({
   const { data: person, isPending, isError, error } = useGetMinorUserProfile();
   const [isNavOpen, setIsNavOpen] = useState(false);
 
+  const status = isError ? getErrorStatus(error) : null;
+
+  useEffect(() => {
+    if (status === 403) {
+      router.replace("/forgot-password?reset_temp_password=true");
+    }
+  }, [status, router]);
+
   useEffect(() => {
     setIsNavOpen(false);
   }, [pathname]);
@@ -94,7 +101,7 @@ export default function AccountShell({
   const deliveriesActive = isDeliveriesSection;
   const profileActive = isProfile;
 
-  if (isPending) {
+  if (isPending || status === 403) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#f5f5f5]">
         <RiLoader5Line size={48} className="animate-spin text-(--primary)" />
@@ -103,8 +110,6 @@ export default function AccountShell({
   }
 
   if (isError || !person) {
-    const status = getErrorStatus(error);
-
     const message =
       status === 403
         ? "You must change your temporary password before continuing."
@@ -119,7 +124,10 @@ export default function AccountShell({
           {status === 403 || status === 401 ? (
             <button
               type="button"
-              onClick={() => router.push("/login")}
+              onClick={() => {
+                logout();
+                router.push("/login");
+              }}
               className="mt-4 text-sm font-semibold text-(--primary) hover:underline"
             >
               Login

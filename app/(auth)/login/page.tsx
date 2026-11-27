@@ -3,6 +3,7 @@
 import { useLoginMutation } from '@/api/auth'
 import { Button, Card, Input } from '@/components/ui'
 import { useAuth } from '@/hooks/use-auth'
+import { setCrossSubdomainCookie } from '@/lib/utils'
 import { getIdentifierType } from '@/lib/validateIdentifier'
 import { Login } from '@/types/types'
 import { AxiosError } from 'axios'
@@ -82,6 +83,8 @@ const AccountLogin = () => {
           pauseOnHover: true,
           draggable: true,
         });
+
+        setCrossSubdomainCookie("reset_identifier", identifier, 1);
 
         const token = res.data?.data?.token;
         const refreshToken = res.data?.data?.refreshToken;
