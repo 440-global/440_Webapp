@@ -2,6 +2,7 @@ import http from "@/lib/http";
 import { ChangePassword, ChangePasswordAuth, Login, Merchant, MinorMerchant, PhoneResetPayload, ProfileData, RegisterPayload } from "@/types/types";
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { getCrossSubdomainCookie } from "@/lib/utils";
+import { getErrorStatus } from "@/types/funcs";
 
 export const useRegisterMutation = () => {
   return useMutation({
@@ -49,7 +50,11 @@ export const useGetMinorUserProfile = () => {
     queryFn: async () => {
       const res = await http.get("/buyer/profile");
       return res?.data?.data.profile;
-    }
+    },
+    retry: (count, err) => {
+      const s = getErrorStatus(err);
+      return s !== 401 && s !== 403 && count < 2;
+    },
   })
 };
 
